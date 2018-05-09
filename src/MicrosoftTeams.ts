@@ -4,6 +4,13 @@ interface MessageEvent {
   originalEvent: MessageEvent;
 }
 
+// Shim in definition used for iOS interop
+interface Window {
+  // tslint:disable-next-line:no-any
+  nativeBridgeCallback: (data: any) => void;
+  teams: { messageHandlers: { observe: Window } };
+}
+
 /**
  * This is the root namespace for the JavaScript SDK.
  */
@@ -202,6 +209,20 @@ namespace microsoftTeams {
       currentWindow.parent !== currentWindow.self
         ? currentWindow.parent
         : currentWindow.opener;
+
+    // Check whether we are running inside of the Teams iOS client
+    if (
+      !parentWindow &&
+      currentWindow.teams &&
+      currentWindow.teams.messageHandlers &&
+      currentWindow.teams.messageHandlers.observe
+    ) {
+      parentWindow = currentWindow.teams.messageHandlers.observe;
+      currentWindow.nativeBridgeCallback = msg => {
+        parentOrigin = parentOrigin || "https://teams.microsoft.com";
+        handleParentMessage({ data: msg } as MessageEvent);
+      };
+    }
 
     try {
       // Send the initialized message to any origin, because at this point we most likely don't know the origin
